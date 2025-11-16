@@ -1338,6 +1338,371 @@ async def anon_view_all(callback: CallbackQuery):
     ])
     
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+   # Add these callback handlers after the admin_anon_menu function
+# Place them before the "PUNISHMENT CALLBACKS" section
+
+@router.callback_query(F.data == "admin_back")
+async def admin_back(callback: CallbackQuery):
+    """Return to main admin menu"""
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📝 Edit Texts", callback_data="admin_texts")],
+        [InlineKeyboardButton(text="🔮 Manage Predictions", callback_data="admin_predictions")],
+        [InlineKeyboardButton(text="😄 Manage Jokes", callback_data="admin_jokes")],
+        [InlineKeyboardButton(text="🔤 Set Tracked Word", callback_data="admin_word")],
+        [InlineKeyboardButton(text="👥 Manage Genders", callback_data="admin_genders")],
+        [InlineKeyboardButton(text="👤 Anonymous Messages", callback_data="admin_anon")],
+        [InlineKeyboardButton(text="⚙️ Settings", callback_data="admin_settings")],
+    ])
+    
+    await callback.message.edit_text(
+        "🔧 **Admin Control Panel**\n\n"
+        "Select an option to manage:",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+@router.callback_query(F.data == "admin_texts")
+async def admin_texts(callback: CallbackQuery):
+    """Edit bot texts"""
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👋 Edit Welcome Text", callback_data="edit_welcome")],
+        [InlineKeyboardButton(text="📚 Edit Help Text", callback_data="edit_help")],
+        [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="admin_back")],
+    ])
+    
+    await callback.message.edit_text(
+        "📝 **Edit Bot Texts**\n\n"
+        "Select which text you want to edit:",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+@router.callback_query(F.data == "edit_welcome")
+async def edit_welcome_start(callback: CallbackQuery, state: FSMContext):
+    """Start editing welcome text"""
+    await state.set_state(AdminStates.waiting_for_text_edit)
+    await state.update_data(edit_type="welcome_text")
+    
+    current = get_setting('welcome_text')
+    
+    await callback.message.edit_text(
+        f"✏️ **Edit Welcome Text**\n\n"
+        f"**Current text:**\n{current}\n\n"
+        f"{'─' * 30}\n\n"
+        f"Send me the new welcome text (or /cancel):",
+        parse_mode="Markdown"
+    )
+
+@router.callback_query(F.data == "edit_help")
+async def edit_help_start(callback: CallbackQuery, state: FSMContext):
+    """Start editing help text"""
+    await state.set_state(AdminStates.waiting_for_text_edit)
+    await state.update_data(edit_type="help_text")
+    
+    current = get_setting('help_text')
+    
+    await callback.message.edit_text(
+        f"✏️ **Edit Help Text**\n\n"
+        f"**Current text:**\n{current[:200]}...\n\n"
+        f"{'─' * 30}\n\n"
+        f"Send me the new help text (or /cancel):",
+        parse_mode="Markdown"
+    )
+
+@router.message(AdminStates.waiting_for_text_edit)
+async def edit_text_finish(message: Message, state: FSMContext):
+    """Save edited text"""
+    if message.text == "/cancel":
+        await state.clear()
+        await message.reply("❌ Cancelled.")
+        return
+    
+    data = await state.get_data()
+    edit_type = data.get("edit_type")
+    
+    update_setting(edit_type, message.text)
+    await state.clear()
+    
+    text_name = "Welcome" if edit_type == "welcome_text" else "Help"
+    
+    await message.reply(
+        f"✅ {text_name} text updated!\n\n"
+        f"Use /admin to return to admin panel."
+    )
+    logger.info(f"✏️ {text_name} text updated")
+
+@router.callback_query(F.data == "admin_predictions")
+async def admin_predictions(callback: CallbackQuery):
+    """Manage predictions"""
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM predictions')
+    count = cursor.fetchone()[0]
+    conn.close()
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Add Prediction", callback_data="add_prediction")],
+        [InlineKeyboardButton(text="🗑️ Delete Prediction", callback_data="delete_prediction")],
+        [InlineKeyboardButton(text="📋 View All", callback_data="view_predictions")],
+        [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="admin_back")],
+    ])
+    
+    await callback.message.edit_text(
+        f"🔮 **Manage Predictions**\n\n"
+        f"Total predictions: {count}\n\n"
+        f"Select an option:",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+@router.callback_query(F.data == "add_prediction")
+async def add_prediction_start(callback: CallbackQuery, state: FSMContext):
+    """Start adding prediction"""
+    await state.set_state(AdminStates.waiting_for_prediction)
+    
+    await callback.message.edit_text(
+        "➕ **Add New Prediction**\n\n"
+        "Send me the prediction text (or /cancel):\n\n"
+        "Examples:\n"
+        "• ✨ Something amazing will happen today!\n"
+        "• 🎁 A surprise awaits you!\n"
+        "• 💫 Your dreams are closer than you think!",
+        parse_mode="Markdown"
+    )
+
+@router.message(AdminStates.waiting_for_prediction)
+async def add_prediction_finish(message: Message, state: FSMContext):
+    """Save new prediction"""
+    if message.text == "/cancel":
+        await state.clear()
+        await message.reply("❌ Cancelled.")
+        return
+    
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO predictions (text) VALUES (?)', (message.text,))
+    conn.commit()
+    conn.close()
+    
+    await state.clear()
+    
+    await message.reply(
+        f"✅ Prediction added!\n\n"
+        f"Use /admin to return to admin panel."
+    )
+    logger.info(f"✏️ Prediction added")
+
+@router.callback_query(F.data == "view_predictions")
+async def view_predictions(callback: CallbackQuery):
+    """View all predictions"""
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, text FROM predictions LIMIT 10')
+    predictions = cursor.fetchall()
+    conn.close()
+    
+    if not predictions:
+        text = "📋 **All Predictions**\n\nNo predictions yet!"
+    else:
+        text = "📋 **All Predictions** (showing first 10):\n\n"
+        for pred_id, pred_text in predictions:
+            short_text = pred_text[:50] + "..." if len(pred_text) > 50 else pred_text
+            text += f"**ID {pred_id}:** {short_text}\n\n"
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Back", callback_data="admin_predictions")],
+    ])
+    
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+
+@router.callback_query(F.data == "admin_jokes")
+async def admin_jokes(callback: CallbackQuery):
+    """Manage jokes"""
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM jokes')
+    count = cursor.fetchone()[0]
+    conn.close()
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="➕ Add Joke", callback_data="add_joke")],
+        [InlineKeyboardButton(text="📋 View All", callback_data="view_jokes")],
+        [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="admin_back")],
+    ])
+    
+    await callback.message.edit_text(
+        f"😄 **Manage Jokes**\n\n"
+        f"Total jokes: {count}\n\n"
+        f"Select an option:",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+@router.callback_query(F.data == "add_joke")
+async def add_joke_start(callback: CallbackQuery, state: FSMContext):
+    """Start adding joke"""
+    await state.set_state(AdminStates.waiting_for_joke)
+    
+    await callback.message.edit_text(
+        "➕ **Add New Joke**\n\n"
+        "Send me the joke (or /cancel):",
+        parse_mode="Markdown"
+    )
+
+@router.message(AdminStates.waiting_for_joke)
+async def add_joke_finish(message: Message, state: FSMContext):
+    """Save new joke"""
+    if message.text == "/cancel":
+        await state.clear()
+        await message.reply("❌ Cancelled.")
+        return
+    
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO jokes (text, author_id) VALUES (?, ?)', 
+                  (message.text, message.from_user.id))
+    conn.commit()
+    conn.close()
+    
+    await state.clear()
+    
+    await message.reply(
+        f"✅ Joke added!\n\n"
+        f"Use /admin to return to admin panel."
+    )
+    logger.info(f"😄 Joke added by admin")
+
+@router.callback_query(F.data == "view_jokes")
+async def view_jokes(callback: CallbackQuery):
+    """View all jokes"""
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, text FROM jokes LIMIT 10')
+    jokes = cursor.fetchall()
+    conn.close()
+    
+    if not jokes:
+        text = "📋 **All Jokes**\n\nNo jokes yet!"
+    else:
+        text = "📋 **All Jokes** (showing first 10):\n\n"
+        for joke_id, joke_text in jokes:
+            short_text = joke_text[:60] + "..." if len(joke_text) > 60 else joke_text
+            text += f"**{joke_id}.** {short_text}\n\n"
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Back", callback_data="admin_jokes")],
+    ])
+    
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+
+@router.callback_query(F.data == "admin_word")
+async def admin_word(callback: CallbackQuery, state: FSMContext):
+    """Set tracked word"""
+    await state.set_state(AdminStates.waiting_for_word)
+    
+    current = get_setting('tracked_word')
+    
+    await callback.message.edit_text(
+        f"🔤 **Set Tracked Word**\n\n"
+        f"**Current word:** {current}\n\n"
+        f"Send me the new word to track (or /cancel):",
+        parse_mode="Markdown"
+    )
+
+@router.message(AdminStates.waiting_for_word)
+async def admin_word_finish(message: Message, state: FSMContext):
+    """Save tracked word"""
+    if message.text == "/cancel":
+        await state.clear()
+        await message.reply("❌ Cancelled.")
+        return
+    
+    update_setting('tracked_word', message.text)
+    await state.clear()
+    
+    await message.reply(
+        f"✅ Tracked word updated to: {message.text}\n\n"
+        f"Use /admin to return to admin panel."
+    )
+    logger.info(f"🔤 Tracked word updated to: {message.text}")
+
+@router.callback_query(F.data == "admin_genders")
+async def admin_genders(callback: CallbackQuery):
+    """Manage user genders"""
+    text = (
+        "👥 **Manage User Genders**\n\n"
+        "Use these commands to set user genders:\n\n"
+        "`/setgender user_id MALE`\n"
+        "`/setgender user_id FEMALE`\n"
+        "`/setgender user_id OTHER`\n\n"
+        "This is used for the /crush command!"
+    )
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="admin_back")],
+    ])
+    
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+
+@router.message(Command("setgender"))
+async def set_gender(message: Message):
+    """Set user gender command"""
+    if message.from_user.id != ADMIN_ID:
+        return
+    
+    try:
+        parts = message.text.split()
+        user_id = int(parts[1])
+        gender = parts[2].upper()
+        
+        if gender not in ['MALE', 'FEMALE', 'OTHER', 'UNKNOWN']:
+            await message.reply("❌ Gender must be: MALE, FEMALE, OTHER, or UNKNOWN")
+            return
+        
+        set_user_gender(user_id, gender)
+        
+        await message.reply(f"✅ User {user_id} gender set to {gender}!")
+        logger.info(f"👥 Gender set: {user_id} = {gender}")
+    except (IndexError, ValueError):
+        await message.reply("❌ Usage: /setgender user_id GENDER\nExample: /setgender 123456789 MALE")
+
+@router.callback_query(F.data == "admin_settings")
+async def admin_settings(callback: CallbackQuery):
+    """Bot settings"""
+    crush_mode = get_setting('crush_mode')
+    tracked_word = get_setting('tracked_word')
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=f"💘 Crush Mode: {crush_mode.upper()}", 
+            callback_data="toggle_crush_mode"
+        )],
+        [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="admin_back")],
+    ])
+    
+    text = (
+        f"⚙️ **Bot Settings**\n\n"
+        f"**Crush Mode:** {crush_mode}\n"
+        f"• `opposite` - Match opposite genders\n"
+        f"• `same` - Match same genders\n\n"
+        f"**Tracked Word:** {tracked_word}\n\n"
+        f"**Joke Thresholds:**\n"
+        f"• Good: {GOOD_JOKE_THRESHOLD} 👍\n"
+        f"• Bad: {BAD_JOKE_THRESHOLD} 👎"
+    )
+    
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+
+@router.callback_query(F.data == "toggle_crush_mode")
+async def toggle_crush_mode(callback: CallbackQuery):
+    """Toggle crush mode"""
+    current = get_setting('crush_mode')
+    new_mode = 'same' if current == 'opposite' else 'opposite'
+    update_setting('crush_mode', new_mode)
+    
+    await callback.answer(f"✅ Crush mode set to: {new_mode}", show_alert=True)
+    await admin_settings(callback)
+    logger.info(f"💘 Crush mode changed to: {new_mode}")
 
 # ═══════════════════════════════════════════════════════════════════════════
 # ⚠️ PUNISHMENT CALLBACKS

@@ -79,7 +79,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 # ═══════════════════════════════════════════════════════════════════════════
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = os.getenv("ADMIN_ID")
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
 
 DATABASE_FILE = "bot_database.db"
 GOOD_JOKE_THRESHOLD = 5  # Thumbs up needed to save joke

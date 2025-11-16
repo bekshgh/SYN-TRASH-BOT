@@ -82,8 +82,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = os.getenv("ADMIN_ID")
 
 DATABASE_FILE = "bot_database.db"
-GOOD_JOKE_THRESHOLD = 20  # Thumbs up needed to save joke
-BAD_JOKE_THRESHOLD = 20   # Thumbs down for punishment
+GOOD_JOKE_THRESHOLD = 5  # Thumbs up needed to save joke
+BAD_JOKE_THRESHOLD = 5   # Thumbs down for punishment
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 📊 LOGGING SETUP

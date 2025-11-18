@@ -1342,8 +1342,8 @@ async def anon_view_all(callback: CallbackQuery):
 # Place them before the "PUNISHMENT CALLBACKS" section
 
 @router.callback_query(F.data == "admin_back")
-async def admin_back(callback: CallbackQuery):
-    """Return to main admin menu"""
+async def admin_back_handler(callback: CallbackQuery):
+    """Return to main admin menu - duplicate handler for safety"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📝 Edit Texts", callback_data="admin_texts")],
         [InlineKeyboardButton(text="🔮 Manage Predictions", callback_data="admin_predictions")],
@@ -1515,6 +1515,80 @@ async def view_predictions(callback: CallbackQuery):
     
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
 
+@router.callback_query(F.data == "delete_prediction")
+async def delete_prediction_start(callback: CallbackQuery, state: FSMContext):
+    """Start deleting predictions"""
+    await state.set_state(AdminStates.waiting_for_prediction_delete)
+    
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, text FROM predictions ORDER BY id LIMIT 20')
+    predictions = cursor.fetchall()
+    conn.close()
+    
+    if not predictions:
+        await callback.message.edit_text(
+            "❌ No predictions to delete!",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 Back", callback_data="admin_predictions")]
+            ])
+        )
+        return
+    
+    text = "🗑️ **Delete Predictions**\n\n"
+    text += "**Available Predictions:**\n\n"
+    for pred_id, pred_text in predictions:
+        short_text = pred_text[:40] + "..." if len(pred_text) > 40 else pred_text
+        text += f"**ID {pred_id}:** {short_text}\n"
+    
+    text += "\n\n📝 **To delete:**\n"
+    text += "• Single: Send the ID (e.g., `5`)\n"
+    text += "• Multiple: Send IDs separated by commas (e.g., `1,3,5,7`)\n"
+    text += "• Cancel: Send `/cancel`"
+    
+    await callback.message.edit_text(text, parse_mode="Markdown")
+
+@router.message(AdminStates.waiting_for_prediction_delete)
+async def delete_prediction_finish(message: Message, state: FSMContext):
+    """Delete prediction(s) by ID"""
+    if message.text == "/cancel":
+        await state.clear()
+        await message.reply("❌ Cancelled.")
+        return
+    
+    try:
+        # Parse IDs (single or multiple)
+        id_str = message.text.strip()
+        if ',' in id_str:
+            ids = [int(x.strip()) for x in id_str.split(',')]
+        else:
+            ids = [int(id_str)]
+        
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        deleted_count = 0
+        for pred_id in ids:
+            cursor.execute('DELETE FROM predictions WHERE id = ?', (pred_id,))
+            if cursor.rowcount > 0:
+                deleted_count += 1
+        
+        conn.commit()
+        conn.close()
+        
+        await state.clear()
+        
+        if deleted_count > 0:
+            await message.reply(
+                f"✅ Successfully deleted {deleted_count} prediction(s)!\n\n"
+                f"Use /admin to return to admin panel."
+            )
+            logger.info(f"🗑️ Deleted {deleted_count} predictions")
+        else:
+            await message.reply("❌ No predictions found with those IDs!")
+    except ValueError:
+        await message.reply("❌ Invalid format! Use ID numbers separated by commas (e.g., 1,3,5)")
+
 @router.callback_query(F.data == "admin_jokes")
 async def admin_jokes(callback: CallbackQuery):
     """Manage jokes"""
@@ -1526,6 +1600,7 @@ async def admin_jokes(callback: CallbackQuery):
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="➕ Add Joke", callback_data="add_joke")],
+        [InlineKeyboardButton(text="🗑️ Delete Jokes", callback_data="delete_joke")],
         [InlineKeyboardButton(text="📋 View All", callback_data="view_jokes")],
         [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="admin_back")],
     ])
@@ -1594,6 +1669,88 @@ async def view_jokes(callback: CallbackQuery):
     ])
     
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+
+@router.callback_query(F.data == "delete_joke")
+async def delete_joke_menu(callback: CallbackQuery):
+    """Show joke deletion menu"""
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, text FROM jokes ORDER BY id LIMIT 20')
+    jokes = cursor.fetchall()
+    conn.close()
+    
+    if not jokes:
+        await callback.message.edit_text(
+            "❌ No jokes to delete!",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 Back", callback_data="admin_jokes")]
+            ])
+        )
+        return
+    
+    text = "🗑️ **Delete Jokes**\n\n"
+    text += "**Available Jokes:**\n\n"
+    for joke_id, joke_text in jokes:
+        short_text = joke_text[:40] + "..." if len(joke_text) > 40 else joke_text
+        text += f"**{joke_id}.** {short_text}\n"
+    
+    text += "\n\n📝 **To delete:**\n"
+    text += "• Single: `/deletejoke 5`\n"
+    text += "• Multiple: `/deletejoke 1,3,5,7`\n\n"
+    text += "💡 Use the command in this chat!"
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Back", callback_data="admin_jokes")],
+    ])
+    
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+
+@router.message(Command("deletejoke"))
+async def delete_joke_command(message: Message):
+    """Delete joke(s) by ID - admin only"""
+    if message.from_user.id != ADMIN_ID:
+        return
+    
+    try:
+        # Parse IDs from command
+        id_str = message.text.replace('/deletejoke', '').strip()
+        
+        if not id_str:
+            await message.reply(
+                "❌ **Usage:**\n"
+                "• Single: `/deletejoke 5`\n"
+                "• Multiple: `/deletejoke 1,3,5,7`",
+                parse_mode="Markdown"
+            )
+            return
+        
+        if ',' in id_str:
+            ids = [int(x.strip()) for x in id_str.split(',')]
+        else:
+            ids = [int(id_str)]
+        
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        deleted_count = 0
+        for joke_id in ids:
+            cursor.execute('DELETE FROM jokes WHERE id = ?', (joke_id,))
+            if cursor.rowcount > 0:
+                deleted_count += 1
+        
+        conn.commit()
+        conn.close()
+        
+        if deleted_count > 0:
+            await message.reply(
+                f"✅ Successfully deleted {deleted_count} joke(s)!\n\n"
+                f"Use /admin to return to admin panel."
+            )
+            logger.info(f"🗑️ Admin deleted {deleted_count} jokes")
+        else:
+            await message.reply("❌ No jokes found with those IDs!")
+    except ValueError:
+        await message.reply("❌ Invalid format! Use numbers separated by commas (e.g., 1,3,5)")
 
 @router.callback_query(F.data == "admin_word")
 async def admin_word(callback: CallbackQuery, state: FSMContext):

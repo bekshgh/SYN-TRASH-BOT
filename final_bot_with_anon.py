@@ -239,16 +239,16 @@ class Database:
         logger.info("✅ Database initialized successfully")
     
     def _set_default_settings(self, cursor):
-        """Set default bot settings"""
-        defaults = {
-            '''👋 Welcome to the Ultimate Group Bot!
+    """Set default bot settings"""
+    defaults = {
+        'welcome_text': '''👋 Welcome to the Ultimate Group Bot!
 
 I'm here to make your group more fun and interactive!
 
 Use /help to see all my commands.
 
 Let's get started! 🚀''',
-            'help_text': '''📚 **Bot Commands Guide**
+        'help_text': '''📚 **Bot Commands Guide**
 
 **📊 Statistics & Fun:**
 /stats - View top 10 most active users today
@@ -267,12 +267,17 @@ Let's get started! 🚀''',
 
 **ℹ️ Other:**
 /help - Show this help message
-/start - Restart the bot''',
-            'tracked_word': 'шмяк',
-            'crush_mode': 'opposite',
-            'anon_enabled': 'true',
-            'anon_group_message': '💬 Use this command in DM with me to send anonymous messages to the group!',
-            'anon_dm_instruction': '''📝 **Send Anonymous Message**
+/start - Restart the bot
+
+**📈 Stats Tracking:**
+I track your messages and count how many times you use specific words!
+
+Enjoy using the bot! 🎉''',
+        'tracked_word': 'шмяк',
+        'crush_mode': 'opposite',
+        'anon_enabled': 'true',
+        'anon_group_message': '💬 Use this command in DM with me to send anonymous messages to the group!',
+        'anon_dm_instruction': '''📝 **Send Anonymous Message**
 
 To send an anonymous message to the group, use:
 `/anon Your message here`
@@ -281,13 +286,13 @@ Example:
 `/anon This is a secret message!`
 
 Your identity will remain hidden! 🕵️''',
-            'anon_prefix': '👤 Anonymous',
-            'anon_cooldown': '60',
-        }
-        
-        for key, value in defaults.items():
-            cursor.execute('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', 
-                          (key, value))
+        'anon_prefix': '👤 Anonymous',
+        'anon_cooldown': '60',
+    }
+    
+    for key, value in defaults.items():
+        cursor.execute('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', 
+                      (key, value))
     
     def _insert_default_data(self, cursor):
         """Insert default predictions and jokes"""

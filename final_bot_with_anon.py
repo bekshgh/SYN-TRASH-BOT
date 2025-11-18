@@ -241,34 +241,33 @@ class Database:
     def _set_default_settings(self, cursor):
         """Set default bot settings"""
         defaults = {
-            '''Привет! Я — сын Треш Ботовича 👶🤖
+            '''👋 Welcome to the Ultimate Group Bot!
 
-Пока пахан ушёл за хлебом, я шепчу твои сообщения в треш-чат. Пиши сюда всё, что угодно — мысли, приколы, признания или просто “шмяк”.
-Анонимность 100%, давай трешить!💥
+I'm here to make your group more fun and interactive!
 
-используй /help чтобы увидеть все команды''',
-            'help_text': '''📚 **мои команды**
+Use /help to see all my commands.
 
-📊 **статистика & приколы :**
-/stats - топ 10 трешеров🏆
-/crush - твой @ краш 💘
-/comp @user1 @user2 - совместимость😋
-/anon - отправь анонимное сообщение в треш🎭
+Let's get started! 🚀''',
+            'help_text': '''📚 **Bot Commands Guide**
 
-🔮 **дневной шмяк:**
-/prediction - предикшны на день💫
-/joke - рандом анекдот🃏
+**📊 Statistics & Fun:**
+/stats - View top 10 most active users today
+/crush - Find your random crush 💘
+/comp @user1 @user2 - Check compatibility between two users
 
-⚠️ **панишмент (пока не робит):**
-/punishment - панишим плохих мальчиков и девачек🤛
+**🔮 Daily Features:**
+/prediction - Get your prediction for today (once per day)
+/joke - Get a random joke 😄
 
-ℹ️ **другие:**
-/help - все команды бота с описанием
-/start - рестарт бота
+**👤 Anonymous Messages:**
+/anon - Send anonymous messages to the group (use in DM)
 
-──────────────────────────────
+**⚠️ Punishment System:**
+/punishment - View punishment leaderboard
 
-давай трешить))''',
+**ℹ️ Other:**
+/help - Show this help message
+/start - Restart the bot''',
             'tracked_word': 'шмяк',
             'crush_mode': 'opposite',
             'anon_enabled': 'true',

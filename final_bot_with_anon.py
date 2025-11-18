@@ -238,7 +238,7 @@ class Database:
         
         logger.info("✅ Database initialized successfully")
     
-    def _set_default_settings(self, cursor):
+def _set_default_settings(self, cursor):
     """Set default bot settings"""
     defaults = {
         'welcome_text': '''👋 Welcome to the Ultimate Group Bot!

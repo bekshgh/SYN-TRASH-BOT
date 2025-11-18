@@ -241,57 +241,35 @@ class Database:
     def _set_default_settings(self, cursor):
         """Set default bot settings"""
         defaults = {
-            'welcome_text': '''👋 **Welcome to the Ultimate Group Bot!**
+            'Привет! Я — сын Треш Ботовича 👶🤖
 
-I'm here to make your group more fun and interactive!
+Пока пахан ушёл за хлебом, я шепчу твои сообщения в треш-чат. Пиши сюда всё, что угодно — мысли, приколы, признания или просто “шмяк”.
+Анонимность 100%, давай трешить!💥
 
-Use /help to see all my commands.
+используй /help чтобы увидеть все команды''',
+            'help_text': '''📚 мои команды
 
-Let's get started! 🚀''',
-            'help_text': '''📚 **Bot Commands Guide**
+📊 статистика & приколы :
+/stats - топ 10 трешеров🏆
+/crush - твой @ краш 💘
+/comp @user1 @user2 - совместимость😋
+/anon - отправь анонимное сообщение в треш🎭
 
-**📊 Statistics & Fun:**
-/stats - View top 10 most active users today
-/crush - Find your random crush 💘
-/comp @user1 @user2 - Check compatibility between two users
+🔮 дневной шмяк:
+/prediction - предикшны на день💫
+/joke - рандом анекдот🃏
 
-**🔮 Daily Features:**
-/prediction - Get your prediction for today (once per day)
-/joke - Get a random joke 😄
+⚠️ панишмент (пока не робит):
+/punishment - панишим плохих мальчиков и девачек🤛
 
-**👤 Anonymous Messages:**
-/anon - Send anonymous messages to the group (use in DM)
+ℹ️ другие:
+/help - все команды бота с описанием
+/start - рестарт бота
 
-**⚠️ Punishment System:**
-/punishment - View punishment leaderboard
+──────────────────────────────
 
-**ℹ️ Other:**
-/help - Show this help message
-/start - Restart the bot
-
-**🎭 Daily Joker System:**
-Every day at 9 AM, I randomly pick a "Joker of the Day"!
-• The joker receives a DM notification
-• They must send their best joke to me in private
-• I post the joke to the group
-• Everyone reacts with 👍 or 👎
-• 20+ 👍 = Joke gets saved to database!
-• 20+ 👎 = Joker gets punishment points!
-
-**📈 Stats Tracking:**
-I track your messages and count how many times you use specific words!
-
-**👨‍💼 Admin Features:**
-Admins can access /admin in private chat to:
-• Edit bot texts
-• Manage predictions and jokes
-• Set tracked words
-• Manage user genders for crush system
-• Manage anonymous messages settings
-• View and reset leaderboards
-
-Enjoy using the bot! 🎉''',
-            'tracked_word': 'lol',
+давай трешить))''',
+            'tracked_word': 'шмяк',
             'crush_mode': 'opposite',
             'anon_enabled': 'true',
             'anon_group_message': '💬 Use this command in DM with me to send anonymous messages to the group!',

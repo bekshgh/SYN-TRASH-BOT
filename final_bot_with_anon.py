@@ -1939,7 +1939,6 @@ async def remove_punisher(message: Message):
 # ═══════════════════════════════════════════════════════════════════════════
 # 🎭 JOKER OF THE DAY SYSTEM
 # ═══════════════════════════════════════════════════════════════════════════
-
 async def assign_daily_joker(bot_instance: Bot):
     """Assign random user as joker of the day"""
     
@@ -1962,70 +1961,103 @@ async def assign_daily_joker(bot_instance: Bot):
         WHERE date >= date('now', '-7 days')
     ''')
     users = cursor.fetchall()
+    conn.close()
     
     if not users:
         logger.warning("⚠️ No active users for joker assignment")
+        return
+    
+    # Shuffle users to try them in random order
+    user_ids = [user[0] for user in users]
+    random.shuffle(user_ids)
+    
+    # Try to assign joker, retrying with different users if needed
+    max_attempts = min(len(user_ids), 10)  # Try up to 10 users
+    
+    for attempt, joker_id in enumerate(user_ids[:max_attempts], 1):
+        logger.info(f"🎲 Attempt {attempt}/{max_attempts}: Trying user {joker_id}")
+        
+        # Get user info
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT username, first_name FROM users WHERE user_id = ?', (joker_id,))
+        user_info = cursor.fetchone()
         conn.close()
-        return
-    
-    # Pick random user
-    joker_id = random.choice(users)[0]
-    
-    # Save to database
-    cursor.execute(
-        'INSERT INTO joker_daily (date, user_id, joke_sent) VALUES (?, ?, 0)',
-        (today, joker_id)
-    )
-    conn.commit()
-    
-    # Get user info
-    cursor.execute('SELECT username, first_name FROM users WHERE user_id = ?', (joker_id,))
-    user_info = cursor.fetchone()
-    conn.close()
-    
-    if not user_info:
-        return
-    
-    username, first_name = user_info
-    user_name = f"@{username}" if username else first_name
-    
-    try:
-        # Notify user in DM
-        await bot_instance.send_message(
-            joker_id,
-            f"🎭 **Congratulations!**\n\n"
-            f"You are the **Joker of the Day!** 🌟\n\n"
-            f"📝 Your mission:\n"
-            f"• Send me your best joke right here in this chat\n"
-            f"• I'll post it to the group\n"
-            f"• Users will react with 👍 or 👎\n\n"
-            f"🎯 **Results:**\n"
-            f"• {GOOD_JOKE_THRESHOLD}+ 👍 = Your joke gets saved to the database!\n"
-            f"• {BAD_JOKE_THRESHOLD}+ 👎 = You get a punishment point!\n\n"
-            f"Good luck! 🍀\n\n"
-            f"_Just reply to this message with your joke!_",
-            parse_mode="Markdown"
-        )
         
-        # Notify in all groups
-        groups = get_all_groups()
-        for chat_id, title in groups:
-            try:
-                await bot_instance.send_message(
-                    chat_id,
-                    f"🎭 **Joker of the Day Announcement!**\n\n"
-                    f"{user_name} has been chosen as today's joker!\n\n"
-                    f"They'll be sending their joke soon... 👀\n"
-                    f"Get ready to judge with 👍 or 👎!",
-                    parse_mode="Markdown"
-                )
-            except Exception as e:
-                logger.error(f"Failed to notify group {chat_id}: {e}")
+        if not user_info:
+            logger.warning(f"⚠️ User {joker_id} not found in database")
+            continue
         
-        logger.info(f"🃏 Daily joker assigned: {joker_id}")
+        username, first_name = user_info
+        user_name = f"@{username}" if username else first_name
         
-    except Exception as e:
-        logger.error(f"❌ Failed to notify joker: {e}")
+        try:
+            # Try to notify user in DM
+            await bot_instance.send_message(
+                joker_id,
+                f"🎭 **Congratulations!**\n\n"
+                f"You are the **Joker of the Day!** 🌟\n\n"
+                f"📝 Your mission:\n"
+                f"• Send me your best joke right here in this chat\n"
+                f"• I'll post it to the group\n"
+                f"• Users will react with 👍 or 👎\n\n"
+                f"🎯 **Results:**\n"
+                f"• {GOOD_JOKE_THRESHOLD}+ 👍 = Your joke gets saved to the database!\n"
+                f"• {BAD_JOKE_THRESHOLD}+ 👎 = You get a punishment point!\n\n"
+                f"Good luck! 🍀\n\n"
+                f"_Just reply to this message with your joke!_",
+                parse_mode="Markdown"
+            )
+            
+            # Success! Save to database
+            conn = db.get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                'INSERT INTO joker_daily (date, user_id, joke_sent) VALUES (?, ?, 0)',
+                (today, joker_id)
+            )
+            conn.commit()
+            conn.close()
+            
+            # Notify in all groups
+            groups = get_all_groups()
+            for chat_id, title in groups:
+                try:
+                    await bot_instance.send_message(
+                        chat_id,
+                        f"🎭 **Joker of the Day Announcement!**\n\n"
+                        f"{user_name} has been chosen as today's joker!\n\n"
+                        f"They'll be sending their joke soon... 👀\n"
+                        f"Get ready to judge with 👍 or 👎!",
+                        parse_mode="Markdown"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to notify group {chat_id}: {e}")
+            
+            logger.info(f"✅ Daily joker successfully assigned: {joker_id} ({user_name})")
+            return  # Success! Exit the function
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Cannot contact user {joker_id} ({user_name}): {e}")
+            # Continue to next user
+            continue
+    
+    # If we get here, we couldn't assign any joker
+    logger.error("❌ Failed to assign joker - no users could be contacted!")
+    
+    # Notify groups that joker assignment failed
+    groups = get_all_groups()
+    for chat_id, title in groups:
+        try:
+            await bot_instance.send_message(
+                chat_id,
+                f"🎭 **Joker Assignment Notice**\n\n"
+                f"Unable to assign a joker today - no eligible users could be contacted.\n\n"
+                f"💡 Tip: Start a private chat with me to be eligible for joker selection!",
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logger.error(f"Failed to notify group {chat_id}: {e}")
 
 # Joker joke submission handler
 @router.message(F.chat.type == 'private', F.text)

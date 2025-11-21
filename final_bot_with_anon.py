@@ -791,62 +791,125 @@ async def cmd_crush(message: Message):
     await message.reply(random.choice(messages))
     logger.info(f"💘 /crush: {message.from_user.id} -> {crush[0]}")
 
-@router.message(Command("comp"))
-async def cmd_comp(message: Message):
-    """### COMPATIBILITY COMMAND ###"""
+async def assign_daily_joker(bot_instance: Bot):
+    """Assign random user as joker of the day"""
     
-    # Parse mentions or text after command
-    args = message.text.split()[1:] if message.text else []
+    today = datetime.now().strftime('%Y-%m-%d')
     
-    if len(args) < 2:
-        await message.reply(
-            "❌ Please mention two users!\n"
-            "**Example:** /comp @user1 @user2\n"
-            "**or:** /comp Alice Bob"
-        )
+    # Check if already assigned
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT user_id FROM joker_daily WHERE date = ?', (today,))
+    result = cursor.fetchone()
+    
+    if result:
+        logger.info("🃏 Joker already assigned today")
+        conn.close()
         return
     
-    user1 = args[0]
-    user2 = args[1]
+    # Get active users from last 7 days
+    cursor.execute('''
+        SELECT DISTINCT user_id FROM messages 
+        WHERE date >= date('now', '-7 days')
+    ''')
+    users = cursor.fetchall()
+    conn.close()
     
-    # Calculate compatibility
-    compatibility = random.randint(0, 100)
+    if not users:
+        logger.warning("⚠️ No active users for joker assignment")
+        return
     
-    # Comments based on compatibility
-    if compatibility >= 90:
-        comment = "🔥 Perfect match! Soulmates detected!"
-        emoji = "💯"
-    elif compatibility >= 75:
-        comment = "💕 Excellent chemistry! Great together!"
-        emoji = "❤️"
-    elif compatibility >= 60:
-        comment = "💗 Very good compatibility!"
-        emoji = "😊"
-    elif compatibility >= 45:
-        comment = "👍 Good potential!"
-        emoji = "🙂"
-    elif compatibility >= 30:
-        comment = "🤔 Could work with some effort..."
-        emoji = "😐"
-    elif compatibility >= 15:
-        comment = "😬 Not the best match..."
-        emoji = "😕"
-    else:
-        comment = "💔 Better as friends..."
-        emoji = "😢"
+    # Shuffle users to try them in random order
+    user_ids = [user[0] for user in users]
+    random.shuffle(user_ids)
     
-    # Create a fancy bar
-    filled = int(compatibility / 10)
-    bar = "█" * filled + "░" * (10 - filled)
+    # Try to assign joker, retrying with different users if needed
+    max_attempts = min(len(user_ids), 10)  # Try up to 10 users
     
-    await message.reply(
-        f"💝 **Compatibility Check**\n\n"
-        f"{user1} 💫 {user2}\n\n"
-        f"{bar} **{compatibility}%** {emoji}\n\n"
-        f"{comment}",
-        parse_mode="Markdown"
-    )
-    logger.info(f"💝 /comp: {user1} + {user2} = {compatibility}%")
+    for attempt, joker_id in enumerate(user_ids[:max_attempts], 1):
+        logger.info(f"🎲 Attempt {attempt}/{max_attempts}: Trying user {joker_id}")
+        
+        # Get user info
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT username, first_name FROM users WHERE user_id = ?', (joker_id,))
+        user_info = cursor.fetchone()
+        conn.close()
+        
+        if not user_info:
+            logger.warning(f"⚠️ User {joker_id} not found in database")
+            continue
+        
+        username, first_name = user_info
+        user_name = f"@{username}" if username else first_name
+        
+        try:
+            # Try to notify user in DM
+            await bot_instance.send_message(
+                joker_id,
+                f"🎭 **Congratulations!**\n\n"
+                f"You are the **Joker of the Day!** 🌟\n\n"
+                f"📝 Your mission:\n"
+                f"• Send me your best joke right here in this chat\n"
+                f"• I'll post it to the group\n"
+                f"• Users will react with 👍 or 👎\n\n"
+                f"🎯 **Results:**\n"
+                f"• {GOOD_JOKE_THRESHOLD}+ 👍 = Your joke gets saved to the database!\n"
+                f"• {BAD_JOKE_THRESHOLD}+ 👎 = You get a punishment point!\n\n"
+                f"Good luck! 🍀\n\n"
+                f"_Just reply to this message with your joke!_",
+                parse_mode="Markdown"
+            )
+            
+            # Success! Save to database
+            conn = db.get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                'INSERT INTO joker_daily (date, user_id, joke_sent) VALUES (?, ?, 0)',
+                (today, joker_id)
+            )
+            conn.commit()
+            conn.close()
+            
+            # Notify in all groups
+            groups = get_all_groups()
+            for chat_id, title in groups:
+                try:
+                    await bot_instance.send_message(
+                        chat_id,
+                        f"🎭 **Joker of the Day Announcement!**\n\n"
+                        f"{user_name} has been chosen as today's joker!\n\n"
+                        f"They'll be sending their joke soon... 👀\n"
+                        f"Get ready to judge with 👍 or 👎!",
+                        parse_mode="Markdown"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to notify group {chat_id}: {e}")
+            
+            logger.info(f"✅ Daily joker successfully assigned: {joker_id} ({user_name})")
+            return  # Success! Exit the function
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Cannot contact user {joker_id} ({user_name}): {e}")
+            # Continue to next user
+            continue
+    
+    # If we get here, we couldn't assign any joker
+    logger.error("❌ Failed to assign joker - no users could be contacted!")
+    
+    # Notify groups that joker assignment failed
+    groups = get_all_groups()
+    for chat_id, title in groups:
+        try:
+            await bot_instance.send_message(
+                chat_id,
+                f"🎭 **Joker Assignment Notice**\n\n"
+                f"Unable to assign a joker today - no eligible users could be contacted.\n\n"
+                f"💡 Tip: Start a private chat with me to be eligible for joker selection!",
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logger.error(f"Failed to notify group {chat_id}: {e}")
 
 @router.message(Command("prediction"))
 async def cmd_prediction(message: Message):

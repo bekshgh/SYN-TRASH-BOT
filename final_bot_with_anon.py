@@ -241,7 +241,7 @@ class Database:
     def _set_default_settings(self, cursor):
         """Set default bot settings"""
         defaults = {
-            'welcome_text': '''👋 Welcome to the Ultimate Group Bot!
+            'welcome_text': '''👋 Welcome to the SYN TRASH BOT!
 
 I'm here to make your group more fun and interactive!
 
@@ -262,7 +262,7 @@ Let's get started! 🚀''',
 **👤 Anonymous Messages:**
 /anon - Send anonymous messages to the group (use in DM)
 
-**⚠️ Punishment System:**
+**⚠️ Punishment System:(beta)**
 /punishment - View punishment leaderboard
 
 **ℹ️ Other:**

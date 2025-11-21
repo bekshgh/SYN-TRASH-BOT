@@ -1573,36 +1573,78 @@ async def add_prediction_start(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AdminStates.waiting_for_prediction)
     
     await callback.message.edit_text(
-        "➕ **Add New Prediction**\n\n"
-        "Send me the prediction text (or /cancel):\n\n"
-        "Examples:\n"
-        "• ✨ Something amazing will happen today!\n"
-        "• 🎁 A surprise awaits you!\n"
-        "• 💫 Your dreams are closer than you think!",
+        "➕ **Add New Predictions**\n\n"
+        "Send me prediction(s) in one of these formats:\n\n"
+        "**Single prediction:**\n"
+        "`✨ Something amazing will happen today!`\n\n"
+        "**Multiple predictions (numbered):**\n"
+        "`1. Prediction one\n"
+        "2. Prediction two\n"
+        "3. Prediction three`\n\n"
+        "**Multiple predictions (line by line):**\n"
+        "`Prediction one\n"
+        "Prediction two\n"
+        "Prediction three`\n\n"
+        "Or send /cancel to cancel.",
         parse_mode="Markdown"
     )
 
 @router.message(AdminStates.waiting_for_prediction)
 async def add_prediction_finish(message: Message, state: FSMContext):
-    """Save new prediction"""
+    """Save new prediction(s)"""
     if message.text == "/cancel":
         await state.clear()
         await message.reply("❌ Cancelled.")
         return
     
+    # Split the text into individual predictions
+    predictions = []
+    lines = message.text.strip().split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        
+        # Remove numbering (1. 2. 3. etc)
+        import re
+        cleaned = re.sub(r'^\d+\.\s*', '', line)
+        # Remove bullet points (• - * etc)
+        cleaned = re.sub(r'^[•\-\*]\s*', '', cleaned)
+        
+        if cleaned:
+            predictions.append(cleaned)
+    
+    if not predictions:
+        await message.reply("❌ No valid predictions found! Please try again.")
+        return
+    
+    # Save all predictions to database
     conn = db.get_connection()
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO predictions (text) VALUES (?)', (message.text,))
+    
+    added_count = 0
+    for pred in predictions:
+        try:
+            cursor.execute('INSERT INTO predictions (text) VALUES (?)', (pred,))
+            added_count += 1
+        except Exception as e:
+            logger.error(f"Failed to add prediction: {e}")
+    
     conn.commit()
     conn.close()
     
     await state.clear()
     
-    await message.reply(
-        f"✅ Prediction added!\n\n"
-        f"Use /admin to return to admin panel."
-    )
-    logger.info(f"✏️ Prediction added")
+    if added_count > 0:
+        await message.reply(
+            f"✅ Successfully added **{added_count}** prediction(s)!\n\n"
+            f"Use /admin to return to admin panel.",
+            parse_mode="Markdown"
+        )
+        logger.info(f"✏️ Added {added_count} predictions")
+    else:
+        await message.reply("❌ Failed to add predictions. Please try again.")
 
 @router.callback_query(F.data == "view_predictions")
 async def view_predictions(callback: CallbackQuery):

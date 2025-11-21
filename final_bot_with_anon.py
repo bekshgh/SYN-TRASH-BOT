@@ -791,6 +791,74 @@ async def cmd_crush(message: Message):
     await message.reply(random.choice(messages))
     logger.info(f"💘 /crush: {message.from_user.id} -> {crush[0]}")
 
+@router.message(Command("comp"))
+async def cmd_comp(message: Message):
+    """### COMPATIBILITY COMMAND ###"""
+    
+    # Parse mentions or text after command
+    args = message.text.split()[1:] if message.text else []
+    
+    if len(args) < 2:
+        await message.reply(
+            "❌ Please mention two users!\n"
+            "**Example:** /comp @user1 @user2\n"
+            "**or:** /comp Alice Bob"
+        )
+        return
+    
+    user1 = args[0]
+    user2 = args[1]
+    
+    # Escape special Markdown characters in usernames
+    def escape_markdown(text: str) -> str:
+        """Escape special characters for Markdown"""
+        special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+        for char in special_chars:
+            text = text.replace(char, f'\\{char}')
+        return text
+    
+    user1_escaped = escape_markdown(user1)
+    user2_escaped = escape_markdown(user2)
+    
+    # Calculate compatibility
+    compatibility = random.randint(0, 100)
+    
+    # Comments based on compatibility
+    if compatibility >= 90:
+        comment = "🔥 Perfect match! Soulmates detected!"
+        emoji = "💯"
+    elif compatibility >= 75:
+        comment = "💕 Excellent chemistry! Great together!"
+        emoji = "❤️"
+    elif compatibility >= 60:
+        comment = "💗 Very good compatibility!"
+        emoji = "😊"
+    elif compatibility >= 45:
+        comment = "👍 Good potential!"
+        emoji = "🙂"
+    elif compatibility >= 30:
+        comment = "🤔 Could work with some effort..."
+        emoji = "😐"
+    elif compatibility >= 15:
+        comment = "😬 Not the best match..."
+        emoji = "😕"
+    else:
+        comment = "💔 Better as friends..."
+        emoji = "😢"
+    
+    # Create a fancy bar
+    filled = int(compatibility / 10)
+    bar = "█" * filled + "░" * (10 - filled)
+    
+    await message.reply(
+        f"💝 **Compatibility Check**\n\n"
+        f"{user1_escaped} 💫 {user2_escaped}\n\n"
+        f"{bar} **{compatibility}%** {emoji}\n\n"
+        f"{comment}",
+        parse_mode="Markdown"
+    )
+    logger.info(f"💝 /comp: {user1} + {user2} = {compatibility}%")
+
 async def assign_daily_joker(bot_instance: Bot):
     """Assign random user as joker of the day"""
     

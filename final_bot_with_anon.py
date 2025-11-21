@@ -1223,43 +1223,49 @@ async def cmd_admin(message: Message):
 async def admin_anon_menu(callback: CallbackQuery):
     """Anonymous messages management menu"""
     
-    enabled = get_setting('anon_enabled') == 'true'
-    prefix = get_setting('anon_prefix') or '👤 Anonymous'
-    cooldown = get_setting('anon_cooldown') or '60'
-    
-    stats = get_anon_stats()
-    
-    status_emoji = "✅" if enabled else "❌"
-    
-    text = f"👤 **Anonymous Messages Management**\n\n"
-    text += f"**Status:** {status_emoji} {'Enabled' if enabled else 'Disabled'}\n"
-    text += f"**Prefix:** {prefix}\n"
-    text += f"**Cooldown:** {cooldown} seconds\n\n"
-    text += f"📊 **Statistics:**\n"
-    text += f"• Total messages: {stats['total']}\n"
-    text += f"• Unique senders: {stats['unique_senders']}\n"
-    text += f"• Today: {stats['today']}\n\n"
-    
-    if stats['top_senders']:
-        text += f"**Top Anonymous Senders:**\n"
-        for username, first_name, count in stats['top_senders']:
-            name = f"@{username}" if username else first_name
-            text += f"• {name}: {count} messages\n"
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text=f"{'🔴 Disable' if enabled else '🟢 Enable'}", 
-            callback_data="anon_toggle"
-        )],
-        [InlineKeyboardButton(text="✏️ Edit Prefix", callback_data="anon_edit_prefix")],
-        [InlineKeyboardButton(text="⏳ Set Cooldown", callback_data="anon_edit_cooldown")],
-        [InlineKeyboardButton(text="📝 Edit Instructions", callback_data="anon_edit_instruction")],
-        [InlineKeyboardButton(text="💬 Edit Group Message", callback_data="anon_edit_group_msg")],
-        [InlineKeyboardButton(text="📊 View All Messages", callback_data="anon_view_all")],
-        [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="admin_back")],
-    ])
-    
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+    try:
+        enabled = get_setting('anon_enabled') == 'true'
+        prefix = get_setting('anon_prefix') or '👤 Anonymous'
+        cooldown = get_setting('anon_cooldown') or '60'
+        
+        stats = get_anon_stats()
+        
+        status_emoji = "✅" if enabled else "❌"
+        
+        text = "👤 Anonymous Messages Management\n\n"
+        text += f"Status: {status_emoji} {'Enabled' if enabled else 'Disabled'}\n"
+        text += f"Prefix: {prefix}\n"
+        text += f"Cooldown: {cooldown} seconds\n\n"
+        text += "📊 Statistics:\n"
+        text += f"• Total messages: {stats['total']}\n"
+        text += f"• Unique senders: {stats['unique_senders']}\n"
+        text += f"• Today: {stats['today']}\n\n"
+        
+        if stats['top_senders']:
+            text += "Top Anonymous Senders:\n"
+            for username, first_name, count in stats['top_senders']:
+                name = f"@{username}" if username else first_name
+                text += f"• {name}: {count} messages\n"
+        
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(
+                text=f"{'🔴 Disable' if enabled else '🟢 Enable'}", 
+                callback_data="anon_toggle"
+            )],
+            [InlineKeyboardButton(text="✏️ Edit Prefix", callback_data="anon_edit_prefix")],
+            [InlineKeyboardButton(text="⏳ Set Cooldown", callback_data="anon_edit_cooldown")],
+            [InlineKeyboardButton(text="📝 Edit Instructions", callback_data="anon_edit_instruction")],
+            [InlineKeyboardButton(text="💬 Edit Group Message", callback_data="anon_edit_group_msg")],
+            [InlineKeyboardButton(text="📊 View All Messages", callback_data="anon_view_all")],
+            [InlineKeyboardButton(text="🔙 Back to Menu", callback_data="admin_back")],
+        ])
+        
+        await callback.message.edit_text(text, reply_markup=keyboard)
+        await callback.answer()
+        
+    except Exception as e:
+        logger.error(f"Error in admin_anon_menu: {e}")
+        await callback.answer("❌ Error loading menu!", show_alert=True)
 
 @router.callback_query(F.data == "anon_toggle")
 async def anon_toggle(callback: CallbackQuery):
@@ -1576,19 +1582,18 @@ async def add_prediction_start(callback: CallbackQuery, state: FSMContext):
         "➕ **Add New Predictions**\n\n"
         "Send me prediction(s) in one of these formats:\n\n"
         "**Single prediction:**\n"
-        "`✨ Something amazing will happen today!`\n\n"
+        "✨ Something amazing will happen today!\n\n"
         "**Multiple predictions (numbered):**\n"
-        "`1. Prediction one\n"
+        "1. Prediction one\n"
         "2. Prediction two\n"
-        "3. Prediction three`\n\n"
+        "3. Prediction three\n\n"
         "**Multiple predictions (line by line):**\n"
-        "`Prediction one\n"
+        "Prediction one\n"
         "Prediction two\n"
-        "Prediction three`\n\n"
+        "Prediction three\n\n"
         "Or send /cancel to cancel.",
         parse_mode="Markdown"
     )
-
 @router.message(AdminStates.waiting_for_prediction)
 async def add_prediction_finish(message: Message, state: FSMContext):
     """Save new prediction(s)"""
